@@ -1,0 +1,1043 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <base target="_top" />
+    <meta charset="UTF-8" />
+    <title>Admin Dashboard - PEA</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        background-color: #f4f6f9;
+        font-family: "Sarabun", sans-serif;
+      }
+      .card-summary {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      }
+      .table-card {
+        background: white;
+        border-radius: 12px;
+        padding: 24px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+      }
+      .badge-status {
+        font-size: 0.85rem;
+        padding: 6px 12px;
+        border-radius: 50px;
+      }
+      .version-badge {
+        cursor: pointer;
+        text-decoration: underline;
+      }
+    </style>
+    <!-- jsPDF & AutoTable -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    <!-- ฟอนต์ภาษาไทย Sarabun สำหรับ jsPDF -->
+    <script src="https://cdn.jsdelivr.net/npm/thai-bath-font-pdf@1.0.0/dist/Sarabun-Regular-normal.js"></script>
+  </head>
+  <body class="p-3 p-md-4">
+    <div class="container-fluid">
+      <!-- Header -->
+      <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+          <h3 class="fw-bold mb-0 text-primary">
+            <i class="fa-solid fa-chart-line me-2"></i
+            >ระบบติดตามสถานะการส่งข้อมูล (หลังบ้าน)
+          </h3>
+          <span class="text-muted small"
+            >ติดตามสถานะการส่งข้อมูลและตรวจสอบประวัติการส่งย้อนหลัง</span
+          >
+        </div>
+        <div class="d-flex gap-2">
+          <button
+            class="btn btn-outline-success"
+            id="btnZip"
+            onclick="downloadZipFiles()"
+          >
+            <i class="fa-solid fa-file-zipper me-1"></i> Download Files (.zip)
+          </button>
+          <button class="btn btn-outline-danger" onclick="openPdfExportModal()">
+            <i class="fa-solid fa-file-pdf me-1"></i> Export PDF (A4)
+          </button>
+          <button class="btn btn-primary" onclick="loadDashboard()">
+            <i class="fa-solid fa-rotate me-1"></i> รีเฟรชข้อมูล
+          </button>
+        </div>
+      </div>
+
+      <!-- Summary Cards -->
+      <div class="row g-3 mb-4">
+        <div class="col-6 col-md-3">
+          <div class="card card-summary bg-primary text-white p-3">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <div class="small opacity-75">รายการทั้งหมด</div>
+                <div class="fs-2 fw-bold" id="totalTasks">-</div>
+              </div>
+              <i class="fa-solid fa-list-check fs-1 opacity-50"></i>
+            </div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="card card-summary bg-success text-white p-3">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <div class="small opacity-75">ส่งข้อมูลแล้ว</div>
+                <div class="fs-2 fw-bold" id="submittedCount">-</div>
+              </div>
+              <i class="fa-solid fa-circle-check fs-1 opacity-50"></i>
+            </div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="card card-summary bg-danger text-white p-3">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <div class="small opacity-75">ยังไม่ส่ง</div>
+                <div class="fs-2 fw-bold" id="pendingCount">-</div>
+              </div>
+              <i class="fa-solid fa-clock-rotate-left fs-1 opacity-50"></i>
+            </div>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="card card-summary bg-dark text-white p-3">
+            <div class="d-flex justify-content-between align-items-center">
+              <div>
+                <div class="small opacity-75">ความคืบหน้าภาพรวม</div>
+                <div class="fs-2 fw-bold" id="percentage">- %</div>
+              </div>
+              <i class="fa-solid fa-chart-pie fs-1 opacity-50"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filter Control -->
+      <div class="table-card mb-4">
+        <div class="row g-3">
+          <div class="col-md-3">
+            <label class="form-label fw-bold"
+              ><i class="fa-solid fa-sort me-1"></i>เรียงลำดับตาม:</label
+            >
+            <select
+              id="sortOrder"
+              class="form-select border-primary"
+              onchange="loadDashboard()"
+            >
+              <option value="topic_first">เรียงตามหัวข้อ ➔ ฝ่าย (1-56)</option>
+              <option value="dept_first">
+                เรียงตามฝ่าย ➔ หัวข้อ (ฝกง., ฝกต. ...)
+              </option>
+              <option value="arrive_first">
+                เวลาที่ส่ง: เก่าสุด ➔ ใหม่สุด (ส่งก่อนขึ้นก่อน)
+              </option>
+              <option value="arrive_last">
+                เวลาที่ส่ง: ใหม่สุด ➔ เก่าสุด (ส่งล่าสุดขึ้นก่อน)
+              </option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-bold">กรองตามฝ่าย:</label>
+            <select
+              id="filterDept"
+              class="form-select"
+              onchange="applyFilter()"
+            >
+              <option value="">-- ทั้งหมดทุกฝ่าย --</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-bold">สถานะการส่ง:</label>
+            <select
+              id="filterStatus"
+              class="form-select"
+              onchange="applyFilter()"
+            >
+              <option value="">-- สถานะทั้งหมด --</option>
+              <option value="submitted">ส่งแล้ว</option>
+              <option value="pending">ยังไม่ส่ง</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-bold"
+              >สถานะของข้อมูล (owner แจ้ง):</label
+            >
+            <select
+              id="filterUserStatus"
+              class="form-select"
+              onchange="applyFilter()"
+            >
+              <option value="">-- ทั้งหมด --</option>
+              <option value="correct">🟢 ข้อมูลถูกต้อง (Col C = 1)</option>
+              <option value="needEdit">🟡 ข้อมูลมีต้องแก้ไข (Col D = 1)</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-bold">สถานะ กปอ.รับทราบ:</label>
+            <select id="filterAck" class="form-select" onchange="applyFilter()">
+              <option value="">-- ทั้งหมด --</option>
+              <option value="pendingReview">⚪ รอตรวจ (ยังไม่รับทราบ)</option>
+              <option value="acknowledged">🔵 กปอ.รับทราบแล้ว</option>
+            </select>
+          </div>
+          <div class="col-md-9">
+            <label class="form-label fw-bold">ค้นหา:</label>
+            <input
+              type="text"
+              id="filterSearch"
+              class="form-control"
+              placeholder="🔍 ค้นหาเลขหัวข้อ หรือ ชื่อหัวข้อ..."
+              onkeyup="applyFilter()"
+            />
+          </div>
+        </div>
+      </div>
+
+      <!-- Data Table -->
+      <div class="table-card">
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead class="table-light">
+              <tr>
+                <th class="text-center">ลำดับ</th>
+                <th class="text-center">หัวข้อที่</th>
+                <th>ฝ่าย</th>
+                <th>ชื่อหัวข้อ</th>
+                <th class="text-center">สถานะส่ง</th>
+                <th class="text-center">สถานะของข้อมูล (owner แจ้ง)</th>
+                <th class="text-center">สถานะ กปอ.</th>
+                <th class="text-center">เวอร์ชัน</th>
+                <th>เวลาที่ส่งล่าสุด</th>
+                <th class="text-center">จัดการ</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody">
+              <tr>
+                <td colspan="10" class="text-center py-5">
+                  <div class="spinner-border text-primary me-2"></div>
+                  กำลังโหลดข้อมูล...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal ดูประวัติเวอร์ชัน -->
+    <div class="modal fade" id="historyModal" tabindex="-1">
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <div class="modal-header bg-light">
+            <h5 class="modal-title fw-bold">
+              <i class="fa-solid fa-folder-tree me-2 text-primary"></i
+              >ประวัติการส่งข้อมูล (Version List)
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <div class="mb-3">
+              <h6 id="historyTitle" class="fw-bold text-primary mb-1"></h6>
+              <span id="historyDept" class="badge bg-secondary"></span>
+            </div>
+            <div class="table-responsive">
+              <table class="table table-bordered align-middle">
+                <thead class="table-light text-center">
+                  <tr>
+                    <th>เวอร์ชัน</th>
+                    <th>วัน-เวลา ที่ส่ง</th>
+                    <th>เบอร์ติดต่อ</th>
+                    <th>ไฟล์ / Google Drive</th>
+                    <th>สถานะ ผู้รับผิดชอบ แจ้ง</th>
+                    <th>สถานะ กปอ.</th>
+                    <th>การกระทำ</th>
+                  </tr>
+                </thead>
+                <tbody id="historyTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal ตรวจงาน กปอ. -->
+    <div class="modal fade" id="inspectModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="inspectModalLabel">ตรวจงาน กปอ.</h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="inspectTopicId" />
+            <input type="hidden" id="inspectDept" />
+
+            <div class="mb-3">
+              <label class="form-label fw-bold">หัวข้อ:</label>
+              <div id="inspectTopicText" class="text-muted"></div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label fw-bold"
+                >สถานะการตรวจ (กปอ.) <span class="text-danger">*</span></label
+              >
+              <select class="form-select" id="inspectKpoStatus" required>
+                <option value="">-- กรุณาเลือกสถานะ --</option>
+                <option value="เรียบร้อย">เรียบร้อย</option>
+                <option value="ไม่ได้ส่งมาเป็นรูปเล่ม">
+                  ไม่ได้ส่งมาเป็นรูปเล่ม
+                </option>
+                <option value="ยังมีปัญหา">ยังมีปัญหา</option>
+                <option value="ฝ่ายไม่ได้เซ็น">ฝ่ายไม่ได้เซ็น</option>
+              </select>
+            </div>
+
+            <div class="mb-3">
+              <label for="inspectKpoNote" class="form-label fw-bold"
+                >หมายเหตุเพิ่มเติม (กปอ.):</label
+              >
+              <textarea
+                class="form-control"
+                id="inspectKpoNote"
+                rows="3"
+                placeholder="ระบุข้อความ comment ของ กปอ..."
+              ></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="button"
+              class="btn btn-primary"
+              onclick="saveInspection()"
+            >
+              บันทึกการตรวจ
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Export PDF -->
+    <div
+      class="modal fade"
+      id="exportPdfModal"
+      tabindex="-1"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title fw-bold text-danger">
+              <i class="fa-solid fa-file-pdf me-2"></i>เลือกเงื่อนไขการ Export
+              PDF
+            </h5>
+            <button
+              type="button"
+              class="btn-close"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <p class="text-muted small mb-3">
+              กรุณาเลือกกลุ่มข้อมูลที่ต้องการนำไปแสดงในรายงาน PDF
+              (ต้องเลือกอย่างน้อย 1 ตัวเลือก):
+            </p>
+
+            <div class="card p-3 bg-light border-0">
+              <div class="form-check mb-2">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  id="chkExportPending"
+                  checked
+                  onchange="validatePdfOptions()"
+                />
+                <label
+                  class="form-check-label fw-bold text-danger"
+                  for="chkExportPending"
+                >
+                  <i class="fa-solid fa-clock-rotate-left me-1"></i> รายการที่
+                  "ยังไม่ส่ง"
+                </label>
+              </div>
+              <div class="form-check">
+                <input
+                  class="form-check-input"
+                  type="checkbox"
+                  id="chkExportSubmitted"
+                  checked
+                  onchange="validatePdfOptions()"
+                />
+                <label
+                  class="form-check-label fw-bold text-success"
+                  for="chkExportSubmitted"
+                >
+                  <i class="fa-solid fa-circle-check me-1"></i> รายการที่
+                  "ส่งแล้ว"
+                </label>
+              </div>
+            </div>
+
+            <div id="pdfOptionAlert" class="text-danger small mt-2 d-none">
+              <i class="fa-solid fa-triangle-exclamation me-1"></i>
+              กรุณาเลือกอย่างน้อย 1 ตัวเลือกเพื่อสร้างรายงาน
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              ยกเลิก
+            </button>
+            <button
+              type="button"
+              class="btn btn-danger"
+              id="btnConfirmExportPdf"
+              onclick="generatePdfWithOption()"
+            >
+              <i class="fa-solid fa-file-pdf me-1"></i> ดาวน์โหลด PDF
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      let rawData = [];
+      let inspectModalObj, historyModalObj, exportPdfModalObj;
+
+      document.addEventListener("DOMContentLoaded", function () {
+        inspectModalObj = new bootstrap.Modal(
+          document.getElementById("inspectModal"),
+        );
+        historyModalObj = new bootstrap.Modal(
+          document.getElementById("historyModal"),
+        );
+        exportPdfModalObj = new bootstrap.Modal(
+          document.getElementById("exportPdfModal"),
+        );
+        loadDashboard();
+      });
+
+      function loadDashboard() {
+        const sortSelect = document.getElementById("sortOrder");
+        const sortBy = sortSelect ? sortSelect.value : "topic_first";
+
+        // แสดงสถานะกำลังโหลดในตาราง
+        const tbody = document.getElementById("tableBody");
+        if (tbody) {
+          tbody.innerHTML = `
+      <tr>
+        <td colspan="10" class="text-center py-5">
+          <div class="spinner-border text-primary me-2"></div>
+          กำลังโหลดข้อมูล...
+        </td>
+      </tr>`;
+        }
+
+        google.script.run
+          .withSuccessHandler(renderDashboard)
+          .withFailureHandler((err) => {
+            console.error("Error loading dashboard:", err);
+            alert("โหลดข้อมูลล้มเหลว: " + err.message);
+            if (tbody) {
+              tbody.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-danger">เกิดข้อผิดพลาดในการโหลดข้อมูล: ${err.message}</td></tr>`;
+            }
+          })
+          .getDashboardData(sortBy);
+      }
+
+      function renderDashboard(res) {
+        if (!res) {
+          console.error("No response received from Apps Script");
+          rawData = [];
+          renderTable([]);
+          return;
+        }
+
+        // อัปเดต สรุปภาพรวม
+        const summary = res.summary || {};
+        document.getElementById("totalTasks").innerText =
+          summary.totalTasks ?? 0;
+        document.getElementById("submittedCount").innerText =
+          summary.submittedCount ?? 0;
+        document.getElementById("pendingCount").innerText =
+          summary.pendingCount ?? 0;
+        document.getElementById("percentage").innerText =
+          (summary.percentage ?? 0) + "%";
+
+        // อัปเดต Dropdown ฝ่าย
+        const deptSelect = document.getElementById("filterDept");
+        const currentSelectedDept = deptSelect.value;
+        deptSelect.innerHTML = '<option value="">-- ทั้งหมดทุกฝ่าย --</option>';
+
+        if (res.departments && Array.isArray(res.departments)) {
+          res.departments.forEach((d) => {
+            deptSelect.innerHTML += `<option value="${d}">${d}</option>`;
+          });
+        }
+        deptSelect.value = currentSelectedDept;
+
+        // กำหนดค่าให้ rawData (รองรับทั้ง res.statusList หรือ res เองถ้าส่งมาเป็น array)
+        rawData = res.statusList || (Array.isArray(res) ? res : []);
+
+        // สั่งวาดตารางทันที
+        applyFilter();
+      }
+
+      function parseToBool(val) {
+        return (
+          val === true ||
+          val === 1 ||
+          val === "1" ||
+          String(val).toUpperCase() === "TRUE"
+        );
+      }
+
+      function getUserStatusBadge(submission) {
+        if (!submission) return '<span class="text-muted small">-</span>';
+
+        const isCorrect = parseToBool(
+          submission.correct ?? submission.isCorrect,
+        );
+        const isNeedEdit = parseToBool(
+          submission.needEdit ?? submission.isNeedEdit,
+        );
+
+        if (isCorrect) {
+          return '<span class="badge bg-success"><i class="fa-solid fa-circle-check me-1"></i>ข้อมูลถูกต้อง</span>';
+        } else if (isNeedEdit) {
+          return '<span class="badge bg-warning text-dark"><i class="fa-solid fa-pen me-1"></i>ข้อมูลมีต้องแก้ไข</span>';
+        } else {
+          return '<span class="badge bg-light text-dark border">ไม่ได้ระบุ</span>';
+        }
+      }
+
+      function getGpoStatusBadge(itemOrSubmission) {
+        if (!itemOrSubmission) return '<span class="text-muted small">-</span>';
+
+        const status = itemOrSubmission.kpoStatus || "";
+        if (status) {
+          return `<span class="badge bg-info text-dark"><i class="fa-solid fa-circle-info me-1"></i>${status}</span>`;
+        }
+
+        const isAck = parseToBool(
+          itemOrSubmission.acknowledged ?? itemOrSubmission.isAck,
+        );
+        if (isAck) {
+          return '<span class="badge bg-info text-dark"><i class="fa-solid fa-eye me-1"></i>รับทราบแล้ว</span>';
+        } else {
+          return '<span class="badge bg-secondary opacity-75"><i class="fa-solid fa-hourglass-half me-1"></i>รอตรวจ</span>';
+        }
+      }
+
+      function applyFilter() {
+        if (!Array.isArray(rawData)) {
+          rawData = [];
+        }
+
+        const dept = document.getElementById("filterDept").value;
+        const status = document.getElementById("filterStatus").value;
+        const userStatus = document.getElementById("filterUserStatus").value;
+        const ackStatus = document.getElementById("filterAck").value;
+        const searchInput = document.getElementById("filterSearch");
+        const search = searchInput
+          ? searchInput.value.toLowerCase().trim()
+          : "";
+
+        const filtered = rawData.filter((item) => {
+          if (dept && item.dept !== dept) return false;
+          if (status === "submitted" && !item.isSubmitted) return false;
+          if (status === "pending" && item.isSubmitted) return false;
+
+          if (userStatus) {
+            if (!item.isSubmitted) return false;
+            const latest = item.latestSubmission || {};
+            const isCorrect = parseToBool(latest.correct ?? latest.isCorrect);
+            const isNeedEdit = parseToBool(
+              latest.needEdit ?? latest.isNeedEdit,
+            );
+
+            if (userStatus === "correct" && !isCorrect) return false;
+            if (userStatus === "needEdit" && !isNeedEdit) return false;
+          }
+
+          if (ackStatus) {
+            if (!item.isSubmitted) return false;
+            const latest = item.latestSubmission || {};
+            const isAck =
+              parseToBool(latest.acknowledged ?? latest.isAck) ||
+              Boolean(item.kpoStatus);
+
+            if (ackStatus === "pendingReview" && isAck) return false;
+            if (ackStatus === "acknowledged" && !isAck) return false;
+          }
+
+          if (search) {
+            const matchName =
+              item.topicName && item.topicName.toLowerCase().includes(search);
+            const matchId =
+              item.topicId && item.topicId.toString().includes(search);
+            const matchDept =
+              item.dept && item.dept.toLowerCase().includes(search);
+            if (!matchName && !matchId && !matchDept) return false;
+          }
+
+          return true;
+        });
+
+        renderTable(filtered);
+      }
+
+      function renderTable(data) {
+        const tbody = document.getElementById("tableBody");
+        if (data.length === 0) {
+          tbody.innerHTML =
+            '<tr><td colspan="10" class="text-center py-4 text-muted">ไม่พบข้อมูลตามเงื่อนไขที่เลือก</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = data
+          .map((item, idx) => {
+            const isSub = item.isSubmitted;
+            const latest = item.latestSubmission || {};
+            const deptEscaped = escapeHtml(item.dept);
+            const topicIdEscaped = escapeHtml(item.topicId);
+
+            return `
+            <tr>
+              <td class="text-center text-secondary small align-middle">#${item.rowNum || idx + 1}</td>
+              <td class="text-center align-middle">
+                <span class="badge bg-primary px-2 py-1 fs-6 fw-bold">${item.topicId}</span>
+              </td>
+              <td><span class="fw-bold">${item.dept}</span></td>
+              <td>${item.topicName}</td>
+              <td class="text-center">
+                ${
+                  isSub
+                    ? '<span class="badge bg-success badge-status"><i class="fa-solid fa-check me-1"></i>ส่งแล้ว</span>'
+                    : '<span class="badge bg-danger badge-status"><i class="fa-solid fa-xmark me-1"></i>ยังไม่ส่ง</span>'
+                }
+              </td>
+              <td class="text-center">${isSub ? getUserStatusBadge(latest) : "-"}</td>
+              <td class="text-center">${isSub ? getGpoStatusBadge(item) : "-"}</td>
+              <td class="text-center">
+                ${
+                  isSub
+                    ? `<span class="badge bg-primary rounded-pill version-badge" onclick="openHistoryModal('${topicIdEscaped}', '${deptEscaped}')">v.${item.totalVersions} (${item.totalVersions} ไฟล์)</span>`
+                    : "-"
+                }
+              </td>
+              <td>${latest.timestamp || "-"}</td>
+              <td class="text-center">
+                ${
+                  isSub
+                    ? `
+                  <button class="btn btn-sm btn-outline-primary me-1 mb-1" onclick="openInspectModal('${topicIdEscaped}', '${deptEscaped}', '${escapeHtml(item.topicName)}', '${escapeHtml(item.kpoStatus || "")}', '${escapeHtml(item.kpoNote || "")}')">
+                    <i class="fa-solid fa-pen-to-square"></i> ตรวจงาน
+                  </button>
+                  <button class="btn btn-sm btn-outline-secondary mb-1" onclick="openHistoryModal('${topicIdEscaped}', '${deptEscaped}')">
+                    <i class="fa-solid fa-list"></i> ประวัติ
+                  </button>
+                `
+                    : '<span class="text-muted small">-</span>'
+                }
+              </td>
+            </tr>
+          `;
+          })
+          .join("");
+      }
+
+      function escapeHtml(str) {
+        return String(str || "")
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;")
+          .replace(/'/g, "&#039;");
+      }
+
+      function openHistoryModal(topicId, dept) {
+        const item = rawData.find(
+          (d) =>
+            String(d.topicId) === String(topicId) &&
+            String(d.dept) === String(dept),
+        );
+
+        if (!item) {
+          alert("ไม่พบข้อมูลประวัติรายการนี้");
+          return;
+        }
+
+        document.getElementById("historyTitle").innerText =
+          `หัวข้อที่ ${item.topicId}: ${item.topicName}`;
+        document.getElementById("historyDept").innerText = `ฝ่าย: ${item.dept}`;
+
+        const tbody = document.getElementById("historyTableBody");
+        const history = item.versionHistory || [];
+
+        tbody.innerHTML = history
+          .map((ver, vIdx) => {
+            const vNumber = history.length - vIdx;
+            const driveBtn = ver.driveUrl
+              ? `<a href="${ver.driveUrl}" target="_blank" class="btn btn-sm btn-outline-success"><i class="fa-brands fa-google-drive me-1"></i> เปิดดูไฟล์</a>`
+              : '<span class="text-muted small">ไม่มีลิงก์</span>';
+
+            return `
+            <tr>
+              <td class="text-center fw-bold">v.${vNumber} ${vIdx === 0 ? '<span class="badge bg-primary">ล่าสุด</span>' : ""}</td>
+              <td>${ver.timestamp}</td>
+              <td>${ver.phone}</td>
+              <td class="text-center">${driveBtn}</td>
+              <td class="text-center">${getUserStatusBadge(ver)}</td>
+              <td class="text-center">${getGpoStatusBadge(item)}</td>
+              <td class="text-center">
+                <button class="btn btn-sm btn-primary" onclick="openInspectModal('${escapeHtml(item.topicId)}', '${escapeHtml(item.dept)}', '${escapeHtml(item.topicName)}', '${escapeHtml(item.kpoStatus || "")}', '${escapeHtml(item.kpoNote || "")}')">
+                  ตรวจงาน
+                </button>
+              </td>
+            </tr>
+          `;
+          })
+          .join("");
+
+        historyModalObj.show();
+      }
+
+      function openInspectModal(
+        topicId,
+        dept,
+        topicName,
+        currentStatus,
+        currentNote,
+      ) {
+        document.getElementById("inspectTopicId").value = topicId;
+        document.getElementById("inspectDept").value = dept;
+        document.getElementById("inspectTopicText").innerText =
+          `หัวข้อที่ ${topicId} ${topicName} (${dept})`;
+
+        document.getElementById("inspectKpoStatus").value = currentStatus || "";
+        document.getElementById("inspectKpoNote").value = currentNote || "";
+
+        inspectModalObj.show();
+      }
+
+      function saveInspection() {
+        const topicId = document.getElementById("inspectTopicId").value;
+        const dept = document.getElementById("inspectDept").value;
+        const kpoStatus = document.getElementById("inspectKpoStatus").value;
+        const kpoNote = document.getElementById("inspectKpoNote").value;
+
+        if (!kpoStatus) {
+          alert("กรุณาเลือกสถานะการตรวจ (กปอ.)");
+          return;
+        }
+
+        const payload = {
+          topicId: topicId,
+          dept: dept,
+          kpoStatus: kpoStatus,
+          kpoNote: kpoNote,
+        };
+
+        const saveBtn = document.querySelector("#inspectModal .btn-primary");
+        const originalText = saveBtn.innerText;
+        saveBtn.innerText = "กำลังบันทึก...";
+        saveBtn.disabled = true;
+
+        google.script.run
+          .withSuccessHandler((res) => {
+            saveBtn.innerText = originalText;
+            saveBtn.disabled = false;
+
+            if (res && res.success) {
+              alert(res.message);
+              inspectModalObj.hide();
+              loadDashboard();
+            } else {
+              alert(
+                "ไม่สามารถบันทึกได้: " + (res ? res.message : "Unknown error"),
+              );
+            }
+          })
+          .withFailureHandler((err) => {
+            saveBtn.innerText = originalText;
+            saveBtn.disabled = false;
+            alert("เกิดข้อผิดพลาด: " + err.message);
+          })
+          .updateInspectionStatus(payload);
+      }
+
+      function downloadZipFiles() {
+        const btn = document.getElementById("btnZip");
+        const originalHtml = btn.innerHTML;
+
+        btn.innerHTML =
+          '<i class="fa-solid fa-spinner fa-spin me-1"></i> กำลังแบ่ง Part บีบอัดไฟล์...';
+        btn.disabled = true;
+
+        google.script.run
+          .withSuccessHandler((res) => {
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+
+            if (res && res.success && res.parts && res.parts.length > 0) {
+              res.parts.forEach((part, index) => {
+                setTimeout(() => {
+                  const link = document.createElement("a");
+                  link.href = part.downloadUrl;
+                  link.target = "_blank";
+                  document.body.appendChild(link);
+                  link.click();
+                  document.body.removeChild(link);
+                }, index * 1000);
+              });
+
+              if (res.parts.length > 1) {
+                alert(
+                  `แบ่งดาวน์โหลดทั้งหมด ${res.parts.length} Part (รวม ${res.totalFiles} ไฟล์)`,
+                );
+              }
+            } else {
+              alert(res ? res.message : "เกิดข้อผิดพลาดในการดาวน์โหลด");
+            }
+          })
+          .withFailureHandler((err) => {
+            btn.innerHTML = originalHtml;
+            btn.disabled = false;
+            alert("เกิดข้อผิดพลาดในการสร้าง ZIP: " + err.message);
+          })
+          .downloadFilesAsZip();
+      }
+
+      function openPdfExportModal() {
+        if (!rawData || rawData.length === 0) {
+          alert("ไม่มีข้อมูลสำหรับ Export");
+          return;
+        }
+        document.getElementById("chkExportPending").checked = true;
+        document.getElementById("chkExportSubmitted").checked = true;
+        validatePdfOptions();
+        exportPdfModalObj.show();
+      }
+
+      function validatePdfOptions() {
+        const includePending =
+          document.getElementById("chkExportPending").checked;
+        const includeSubmitted =
+          document.getElementById("chkExportSubmitted").checked;
+        const confirmBtn = document.getElementById("btnConfirmExportPdf");
+        const alertText = document.getElementById("pdfOptionAlert");
+
+        const isValid = includePending || includeSubmitted;
+
+        confirmBtn.disabled = !isValid;
+        if (isValid) {
+          alertText.classList.add("d-none");
+        } else {
+          alertText.classList.remove("d-none");
+        }
+      }
+
+      async function loadThaiFont(doc) {
+        const fontUrl =
+          "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/sarabun/Sarabun-Regular.ttf";
+        const response = await fetch(fontUrl);
+        const blob = await response.blob();
+
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = function () {
+            const base64data = reader.result.split(",")[1];
+            doc.addFileToVFS("Sarabun-Regular.ttf", base64data);
+            doc.addFont("Sarabun-Regular.ttf", "Sarabun", "normal");
+            resolve();
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+      }
+
+      async function generatePdfWithOption() {
+        const includePending =
+          document.getElementById("chkExportPending").checked;
+        const includeSubmitted =
+          document.getElementById("chkExportSubmitted").checked;
+
+        const btn = document.getElementById("btnConfirmExportPdf");
+        const originalText = btn.innerHTML;
+        btn.innerHTML =
+          '<i class="fa-solid fa-spinner fa-spin me-1"></i> กำลังสร้าง PDF...';
+        btn.disabled = true;
+
+        try {
+          const exportData = rawData.filter((item) => {
+            if (item.isSubmitted && includeSubmitted) return true;
+            if (!item.isSubmitted && includePending) return true;
+            return false;
+          });
+
+          if (exportData.length === 0) {
+            alert("ไม่พบข้อมูลตามเงื่อนไขที่เลือก Export");
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+            return;
+          }
+
+          const { jsPDF } = window.jspdf;
+          const doc = new jsPDF({
+            orientation: "portrait",
+            unit: "mm",
+            format: "a4",
+          });
+
+          await loadThaiFont(doc);
+          doc.setFont("Sarabun", "normal");
+
+          const groupedByDept = {};
+          exportData.forEach((item) => {
+            const dept = item.dept || "ไม่ระบุฝ่าย";
+            if (!groupedByDept[dept]) {
+              groupedByDept[dept] = [];
+            }
+            groupedByDept[dept].push(item);
+          });
+
+          const deptList = Object.keys(groupedByDept).sort((a, b) =>
+            a.localeCompare(b, "th"),
+          );
+          let currentY = 15;
+
+          doc.setFontSize(16);
+          let titleSubtitle = "รายงานสรุปสถานะการส่งข้อมูล";
+          if (includePending && !includeSubmitted)
+            titleSubtitle += " (เฉพาะรายการที่ยังไม่ส่ง)";
+          else if (!includePending && includeSubmitted)
+            titleSubtitle += " (เฉพาะรายการที่ส่งแล้ว)";
+
+          doc.text(titleSubtitle, 14, currentY);
+          currentY += 8;
+
+          deptList.forEach((dept) => {
+            const items = groupedByDept[dept].sort(
+              (a, b) => (parseInt(a.topicId) || 0) - (parseInt(b.topicId) || 0),
+            );
+
+            const tableData = items.map((item) => {
+              const isSub = item.isSubmitted;
+              const latest = item.latestSubmission || {};
+              const statusText = isSub ? "ส่งแล้ว" : "ยังไม่ส่ง";
+
+              let userReportedText = "-";
+              if (isSub) {
+                const isCorrect = parseToBool(latest.correct);
+                const isNeedEdit = parseToBool(latest.needEdit);
+                if (isCorrect) userReportedText = "ข้อมูลถูกต้อง";
+                else if (isNeedEdit) userReportedText = "ข้อมูลมีต้องแก้ไข";
+                else userReportedText = "ไม่ได้ระบุ";
+              }
+
+              return [
+                `หัวข้อที่ ${item.topicId}`,
+                item.topicName,
+                statusText,
+                userReportedText,
+              ];
+            });
+
+            if (currentY > 250) {
+              doc.addPage();
+              currentY = 15;
+            }
+
+            doc.setFontSize(12);
+            doc.setTextColor(13, 110, 253);
+            doc.text(`ฝ่าย: ${dept} (${items.length} รายการ)`, 14, currentY);
+            currentY += 3;
+
+            doc.autoTable({
+              startY: currentY,
+              head: [
+                [
+                  "หัวข้อที่",
+                  "ชื่อหัวข้อ",
+                  "สถานะส่ง",
+                  "สถานะของข้อมูล (owner แจ้ง)",
+                ],
+              ],
+              body: tableData,
+              styles: {
+                font: "Sarabun",
+                fontStyle: "normal",
+                fontSize: 9,
+                cellPadding: 2,
+                valign: "middle",
+              },
+              headStyles: {
+                fillColor: [66, 83, 100],
+                textColor: [255, 255, 255],
+                fontStyle: "normal",
+                halign: "center",
+              },
+              alternateRowStyles: {
+                fillColor: [245, 247, 250],
+              },
+              columnStyles: {
+                0: { cellWidth: 22, halign: "center" },
+                1: { cellWidth: "auto" },
+                2: { cellWidth: 28, halign: "center" },
+                3: { cellWidth: 40, halign: "center" },
+              },
+              margin: { left: 14, right: 14 },
+              didDrawPage: (data) => {
+                currentY = data.cursor.y + 8;
+              },
+            });
+          });
+
+          const dateStr = new Date().toISOString().slice(0, 10);
+          doc.save(`PEA_Status_Report_${dateStr}.pdf`);
+          exportPdfModalObj.hide();
+        } catch (error) {
+          console.error("PDF Export Error:", error);
+          alert("เกิดข้อผิดพลาดในการสร้าง PDF กรุณาลองใหม่อีกครั้ง");
+        } finally {
+          btn.innerHTML = originalText;
+          btn.disabled = false;
+        }
+      }
+    </script>
+  </body>
+</html>
