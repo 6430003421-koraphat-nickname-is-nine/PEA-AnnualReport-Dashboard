@@ -41,8 +41,6 @@
     <!-- jsPDF & AutoTable -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
-    <!-- ฟอนต์ภาษาไทย Sarabun สำหรับ jsPDF -->
-    <script src="https://cdn.jsdelivr.net/npm/thai-bath-font-pdf@1.0.0/dist/Sarabun-Regular-normal.js"></script>
   </head>
   <body class="p-3 p-md-4">
     <div class="container-fluid">
@@ -58,6 +56,9 @@
           >
         </div>
         <div class="d-flex gap-2">
+          <button class="btn btn-outline-dark" onclick="openMappingModal()">
+            <i class="fa-solid fa-sliders me-1"></i> จัดการภาระงาน (Mapping)
+          </button>
           <button
             class="btn btn-outline-success"
             id="btnZip"
@@ -196,7 +197,7 @@
               type="text"
               id="filterSearch"
               class="form-control"
-              placeholder="🔍 ค้นหาเลขหัวข้อ หรือ ชื่อหัวข้อ..."
+              placeholder="🔍 ค้นหาเลขหัวข้อ, ชื่อหัวข้อ หรือ ชื่อฝ่าย..."
               onkeyup="applyFilter()"
             />
           </div>
@@ -431,7 +432,98 @@
         </div>
       </div>
     </div>
+    <!-- Modal จัดการ Mapping -->
+    <div class="modal fade" id="mappingModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header bg-dark text-white">
+            <h5 class="modal-title">
+              <i class="fa-solid fa-sliders me-2"></i>จัดการหัวข้อรับผิดชอบ
+              (Mapping)
+            </h5>
+            <button
+              type="button"
+              class="btn-close btn-close-white"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <!-- เลือกฝ่ายที่ต้องการจัดการ -->
+            <div
+              class="row g-3 mb-4 align-items-center bg-light p-3 rounded border"
+            >
+              <div class="col-md-3">
+                <label class="form-label fw-bold mb-0">เลือกฝ่าย:</label>
+              </div>
+              <div class="col-md-9">
+                <select
+                  id="mapDeptSelect"
+                  class="form-select"
+                  onchange="renderMappingList()"
+                >
+                  <!-- ให้ JS เติมรายชื่อฝ่าย -->
+                </select>
+              </div>
+            </div>
 
+            <!-- ฟอร์มเพิ่มหัวข้อใหม่ -->
+            <div class="card mb-4 border-primary">
+              <div class="card-body p-3">
+                <h6 class="card-title text-primary fw-bold">
+                  <i class="fa-solid fa-plus-circle me-1"></i>
+                  มอบหมายหัวข้อเพิ่ม
+                </h6>
+                <div class="row g-2 align-items-center mt-1">
+                  <div class="col-md-9">
+                    <select id="mapTopicSelect" class="form-select">
+                      <!-- ให้ JS เติมรายชื่อหัวข้อทั้งหมด -->
+                    </select>
+                  </div>
+                  <div class="col-md-3">
+                    <button
+                      class="btn btn-primary w-100"
+                      onclick="addMappingRelation()"
+                    >
+                      <i class="fa-solid fa-plus me-1"></i> เพิ่มหัวข้อ
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- ตารางแสดงหัวข้อที่ฝ่ายนี้รับผิดชอบอยู่ปัจจุบัน -->
+            <h6 class="fw-bold">
+              <i class="fa-solid fa-list-check me-1"></i>
+              รายการหัวข้อที่รับผิดชอบในปัจจุบัน
+            </h6>
+            <div class="table-responsive">
+              <table class="table table-bordered table-hover align-middle mb-0">
+                <thead class="table-secondary">
+                  <tr>
+                    <th style="width: 15%" class="text-center">เลขหัวข้อ</th>
+                    <th>ชื่อหัวข้อรายงาน</th>
+                    <th style="width: 20%" class="text-center">จัดการ</th>
+                  </tr>
+                </thead>
+                <tbody id="mappingTableBody">
+                  <!-- ข้อมูลจะถูก render ผ่าน JS -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              ปิดหน้าต่าง
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
       let rawData = [];
@@ -454,7 +546,6 @@
         const sortSelect = document.getElementById("sortOrder");
         const sortBy = sortSelect ? sortSelect.value : "topic_first";
 
-        // แสดงสถานะกำลังโหลดในตาราง
         const tbody = document.getElementById("tableBody");
         if (tbody) {
           tbody.innerHTML = `
@@ -472,7 +563,7 @@
             console.error("Error loading dashboard:", err);
             alert("โหลดข้อมูลล้มเหลว: " + err.message);
             if (tbody) {
-              tbody.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-danger">เกิดข้อผิดพลาดในการโหลดข้อมูล: ${err.message}</td></tr>`;
+              tbody.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-danger">เกิดข้อผิดพลาดในการโหลดข้อมูล: ${escapeHtml(err.message)}</td></tr>`;
             }
           })
           .getDashboardData(sortBy);
@@ -486,7 +577,6 @@
           return;
         }
 
-        // อัปเดต สรุปภาพรวม
         const summary = res.summary || {};
         document.getElementById("totalTasks").innerText =
           summary.totalTasks ?? 0;
@@ -497,22 +587,18 @@
         document.getElementById("percentage").innerText =
           (summary.percentage ?? 0) + "%";
 
-        // อัปเดต Dropdown ฝ่าย
         const deptSelect = document.getElementById("filterDept");
         const currentSelectedDept = deptSelect.value;
         deptSelect.innerHTML = '<option value="">-- ทั้งหมดทุกฝ่าย --</option>';
 
         if (res.departments && Array.isArray(res.departments)) {
           res.departments.forEach((d) => {
-            deptSelect.innerHTML += `<option value="${d}">${d}</option>`;
+            deptSelect.innerHTML += `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`;
           });
         }
         deptSelect.value = currentSelectedDept;
 
-        // กำหนดค่าให้ rawData (รองรับทั้ง res.statusList หรือ res เองถ้าส่งมาเป็น array)
         rawData = res.statusList || (Array.isArray(res) ? res : []);
-
-        // สั่งวาดตารางทันที
         applyFilter();
       }
 
@@ -549,7 +635,7 @@
 
         const status = itemOrSubmission.kpoStatus || "";
         if (status) {
-          return `<span class="badge bg-info text-dark"><i class="fa-solid fa-circle-info me-1"></i>${status}</span>`;
+          return `<span class="badge bg-info text-dark"><i class="fa-solid fa-circle-info me-1"></i>${escapeHtml(status)}</span>`;
         }
 
         const isAck = parseToBool(
@@ -639,10 +725,10 @@
             <tr>
               <td class="text-center text-secondary small align-middle">#${item.rowNum || idx + 1}</td>
               <td class="text-center align-middle">
-                <span class="badge bg-primary px-2 py-1 fs-6 fw-bold">${item.topicId}</span>
+                <span class="badge bg-primary px-2 py-1 fs-6 fw-bold">${escapeHtml(item.topicId)}</span>
               </td>
-              <td><span class="fw-bold">${item.dept}</span></td>
-              <td>${item.topicName}</td>
+              <td><span class="fw-bold">${escapeHtml(item.dept)}</span></td>
+              <td>${escapeHtml(item.topicName)}</td>
               <td class="text-center">
                 ${
                   isSub
@@ -659,7 +745,7 @@
                     : "-"
                 }
               </td>
-              <td>${latest.timestamp || "-"}</td>
+              <td>${escapeHtml(latest.timestamp || "-")}</td>
               <td class="text-center">
                 ${
                   isSub
@@ -692,8 +778,8 @@
       function openHistoryModal(topicId, dept) {
         const item = rawData.find(
           (d) =>
-            String(d.topicId) === String(topicId) &&
-            String(d.dept) === String(dept),
+            String(d.topicId).trim() === String(topicId).trim() &&
+            String(d.dept).trim() === String(dept).trim(),
         );
 
         if (!item) {
@@ -712,14 +798,14 @@
           .map((ver, vIdx) => {
             const vNumber = history.length - vIdx;
             const driveBtn = ver.driveUrl
-              ? `<a href="${ver.driveUrl}" target="_blank" class="btn btn-sm btn-outline-success"><i class="fa-brands fa-google-drive me-1"></i> เปิดดูไฟล์</a>`
+              ? `<a href="${escapeHtml(ver.driveUrl)}" target="_blank" class="btn btn-sm btn-outline-success"><i class="fa-brands fa-google-drive me-1"></i> เปิดดูไฟล์</a>`
               : '<span class="text-muted small">ไม่มีลิงก์</span>';
 
             return `
             <tr>
               <td class="text-center fw-bold">v.${vNumber} ${vIdx === 0 ? '<span class="badge bg-primary">ล่าสุด</span>' : ""}</td>
-              <td>${ver.timestamp}</td>
-              <td>${ver.phone}</td>
+              <td>${escapeHtml(ver.timestamp)}</td>
+              <td>${escapeHtml(ver.phone)}</td>
               <td class="text-center">${driveBtn}</td>
               <td class="text-center">${getUserStatusBadge(ver)}</td>
               <td class="text-center">${getGpoStatusBadge(item)}</td>
@@ -872,22 +958,27 @@
       }
 
       async function loadThaiFont(doc) {
-        const fontUrl =
-          "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/sarabun/Sarabun-Regular.ttf";
-        const response = await fetch(fontUrl);
-        const blob = await response.blob();
+        try {
+          const fontUrl =
+            "https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/sarabun/Sarabun-Regular.ttf";
+          const response = await fetch(fontUrl);
+          if (!response.ok) throw new Error("Network response failed");
+          const blob = await response.blob();
 
-        return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = function () {
-            const base64data = reader.result.split(",")[1];
-            doc.addFileToVFS("Sarabun-Regular.ttf", base64data);
-            doc.addFont("Sarabun-Regular.ttf", "Sarabun", "normal");
-            resolve();
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
+          return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = function () {
+              const base64data = reader.result.split(",")[1];
+              doc.addFileToVFS("Sarabun-Regular.ttf", base64data);
+              doc.addFont("Sarabun-Regular.ttf", "Sarabun", "normal");
+              resolve();
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        } catch (e) {
+          console.warn("Fallback to system font due to fetch error", e);
+        }
       }
 
       async function generatePdfWithOption() {
@@ -1037,6 +1128,176 @@
           btn.innerHTML = originalText;
           btn.disabled = false;
         }
+      }
+      // 1. กำหนด Initial State ให้เป็น Object ว่าง แทนที่จะเป็น null
+      let currentGlobalData = {
+        summary: {},
+        statusList: [],
+        departments: [],
+        allTopics: {},
+        deptMapping: {},
+      };
+
+      // 2. ฟังก์ชันเรียกร้องข้อมูลและเปิด Modal (มี Null Check)
+      function openMappingModal() {
+        // ดักเช็กถ้าข้อมูลยังโหลดไม่เสร็จ ไม่ให้เปิด Modal แล้วพัง
+        if (!currentGlobalData || !currentGlobalData.departments) {
+          alert("ข้อมูลกำลังโหลด กรุณารอสักครู่แล้วลองใหม่อีกครั้ง");
+          return;
+        }
+
+        const modalElement = document.getElementById("mappingModal");
+        if (!modalElement) {
+          console.error("ไม่พบ Element id='mappingModal' ใน HTML");
+          return;
+        }
+
+        const modal = new bootstrap.Modal(modalElement);
+
+        // โหลดรายชื่อฝ่ายใส่ Select
+        const deptSelect = document.getElementById("mapDeptSelect");
+        if (deptSelect) {
+          const depts = currentGlobalData.departments || [];
+          deptSelect.innerHTML = depts
+            .map(
+              (d) =>
+                `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`,
+            )
+            .join("");
+        }
+
+        // โหลดรายชื่อหัวข้อทั้งหมดใส่ Select สำหรับเพิ่ม
+        const topicSelect = document.getElementById("mapTopicSelect");
+        if (topicSelect) {
+          const allTopics = currentGlobalData.allTopics || {};
+          topicSelect.innerHTML = Object.keys(allTopics)
+            .map(
+              (id) =>
+                `<option value="${id}">[หัวข้อ ${id}] ${escapeHtml(allTopics[id])}</option>`,
+            )
+            .join("");
+        }
+
+        renderMappingList();
+        modal.show();
+      }
+
+      // 3. แสดงรายการหัวข้อของฝ่ายที่เลือก (ใช้ Optional Chaining กัน Crash)
+      function renderMappingList() {
+        const deptSelect = document.getElementById("mapDeptSelect");
+        const tbody = document.getElementById("mappingTableBody");
+
+        if (!deptSelect || !tbody) return;
+
+        const selectedDept = deptSelect.value;
+        // ใช้ ?. และ || [] กัน Error
+        const deptMapping = currentGlobalData?.deptMapping || {};
+        const deptTopics = deptMapping[selectedDept] || [];
+        const allTopics = currentGlobalData?.allTopics || {};
+
+        if (deptTopics.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="3" class="text-center text-muted">ฝ่ายนี้ยังไม่มีการมอบหมายหัวข้อใดๆ</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = deptTopics
+          .map((topicId) => {
+            const name = allTopics[topicId] || `หัวข้อที่ ${topicId}`;
+            return `
+        <tr>
+          <td class="text-center"><span class="badge bg-primary">${escapeHtml(topicId)}</span></td>
+          <td>${escapeHtml(name)}</td>
+          <td class="text-center">
+            <button class="btn btn-sm btn-outline-danger" onclick="removeMappingRelation('${escapeHtml(selectedDept)}', '${escapeHtml(topicId)}')">
+              <i class="fa-solid fa-trash-can me-1"></i> ลบออก
+            </button>
+          </td>
+        </tr>`;
+          })
+          .join("");
+      }
+
+      // 4. สั่งงานลบ Mapping
+      function removeMappingRelation(dept, topicId) {
+        if (
+          !confirm(
+            `ยืนยันการลบหัวข้อที่ ${topicId} ออกจากความรับผิดชอบของฝ่าย ${dept} ใช่หรือไม่?\n(รายการนี้จะหายไปจาก Dashboard ทันที)`,
+          )
+        ) {
+          return;
+        }
+
+        google.script.run
+          .withSuccessHandler((res) => {
+            alert(res.message);
+            if (res.success) {
+              loadDashboard();
+            }
+          })
+          .withFailureHandler((err) => alert("เกิดข้อผิดพลาด: " + err.message))
+          .updateMappingRelation("remove", dept, topicId);
+      }
+
+      // 5. สั่งงานเพิ่ม Mapping ใหม่
+      function addMappingRelation() {
+        const deptSelect = document.getElementById("mapDeptSelect");
+        const topicSelect = document.getElementById("mapTopicSelect");
+
+        if (!deptSelect || !topicSelect) return;
+
+        const dept = deptSelect.value;
+        const topicId = topicSelect.value;
+
+        google.script.run
+          .withSuccessHandler((res) => {
+            alert(res.message);
+            if (res.success) {
+              loadDashboard();
+            }
+          })
+          .withFailureHandler((err) => alert("เกิดข้อผิดพลาด: " + err.message))
+          .updateMappingRelation("add", dept, topicId);
+      }
+
+      // 6. loadDashboard ฉบับปลอดภัย
+      function loadDashboard() {
+        google.script.run
+          .withSuccessHandler((data) => {
+            if (!data) return;
+            currentGlobalData = data;
+
+            // 📌 ต้องมีบรรทัดนี้เพื่อส่งข้อมูลสรุปไปแสดงบน HTML Cards
+            renderSummary(data.summary);
+
+            // แสดงข้อมูลตาราง
+            renderTable(data.statusList);
+
+            if (typeof setupDepartmentDropdown === "function") {
+              setupDepartmentDropdown(data.departments);
+            }
+          })
+          .getDashboardData();
+      }
+      function renderSummary(summary) {
+        if (!summary) return;
+
+        // อ่านค่าจาก summary Object
+        const total = summary.totalTasks ?? 0;
+        const submitted = summary.submittedCount ?? 0;
+        const pending = summary.pendingCount ?? 0;
+        const percentage = summary.percentage ?? 0;
+
+        // หยิบ Element ตาม ID ของ HTML เดิมที่คุณส่งมา
+        const totalElem = document.getElementById("totalTasks");
+        const submittedElem = document.getElementById("submittedCount");
+        const pendingElem = document.getElementById("pendingCount");
+        const percentElem = document.getElementById("percentage");
+
+        // อัปเดตตัวเลขลงบนการ์ด
+        if (totalElem) totalElem.innerText = total.toLocaleString();
+        if (submittedElem) submittedElem.innerText = submitted.toLocaleString();
+        if (pendingElem) pendingElem.innerText = pending.toLocaleString();
+        if (percentElem) percentElem.innerText = `${percentage} %`;
       }
     </script>
   </body>
