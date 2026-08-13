@@ -158,14 +158,31 @@ function getDashboardData(sortBy = "topic_first") {
     };
   });
 
-  // 4. Sort ข้อมูล
+  // 4. Sort ข้อมูล (ปรับแก้เพิ่มเงื่อนไขเรียงตามเวลาที่นี่)
   statusList.sort((a, b) => {
     const numA = parseInt(a.topicId) || 0;
     const numB = parseInt(b.topicId) || 0;
+    const timeA = a.lastTime || 0;
+    const timeB = b.lastTime || 0;
+
     if (sortBy === "dept_first") {
       const deptCompare = a.dept.localeCompare(b.dept, "th");
       return deptCompare !== 0 ? deptCompare : numA - numB;
+    } else if (sortBy === "arrive_first") {
+      // เก่าสุด ➔ ใหม่สุด (ส่งก่อนขึ้นก่อน / ยังไม่ส่งไว้ล่างสุด)
+      if (timeA === 0 && timeB === 0) return numA - numB;
+      if (timeA === 0) return 1;
+      if (timeB === 0) return -1;
+      return timeA - timeB;
+    } else if (sortBy === "arrive_last") {
+      // ใหม่สุด ➔ เก่าสุด (ส่งล่าสุดขึ้นก่อน / ยังไม่ส่งไว้ล่างสุด)
+      if (timeA === 0 && timeB === 0) return numA - numB;
+      if (timeA === 0) return 1;
+      if (timeB === 0) return -1;
+      return timeB - timeA;
     }
+
+    // Default: topic_first (เรียงตามหัวข้อ ➔ ฝ่าย)
     return numA !== numB ? numA - numB : a.dept.localeCompare(b.dept, "th");
   });
 
