@@ -577,27 +577,19 @@
           return;
         }
 
-        const summary = res.summary || {};
-        document.getElementById("totalTasks").innerText =
-          summary.totalTasks ?? 0;
-        document.getElementById("submittedCount").innerText =
-          summary.submittedCount ?? 0;
-        document.getElementById("pendingCount").innerText =
-          summary.pendingCount ?? 0;
-        document.getElementById("percentage").innerText =
-          (summary.percentage ?? 0) + "%";
+        // 📌 1. บันทึก Cache ข้อมูลไว้ที่ currentGlobalData
+        currentGlobalData = res;
 
-        const deptSelect = document.getElementById("filterDept");
-        const currentSelectedDept = deptSelect.value;
-        deptSelect.innerHTML = '<option value="">-- ทั้งหมดทุกฝ่าย --</option>';
-
+        // 📌 2. เติมรายชื่อฝ่ายลง Dropdown กรองตามฝ่าย
         if (res.departments && Array.isArray(res.departments)) {
-          res.departments.forEach((d) => {
-            deptSelect.innerHTML += `<option value="${escapeHtml(d)}">${escapeHtml(d)}</option>`;
-          });
+          setupDepartmentDropdown(res.departments);
         }
-        deptSelect.value = currentSelectedDept;
 
+        // 📌 3. อัปเดตตัวเลข Summary Cards
+        const summary = res.summary || {};
+        renderSummary(summary);
+
+        // 📌 4. บันทึกข้อมูลตั้งต้น และสั่ง Filter เพื่อแสดงผลตาราง
         rawData = res.statusList || (Array.isArray(res) ? res : []);
         applyFilter();
       }
@@ -649,60 +641,65 @@
       }
 
       function applyFilter() {
-        if (!Array.isArray(rawData)) {
-          rawData = [];
-        }
+        if (!currentGlobalData || !currentGlobalData.statusList) return;
 
-        const dept = document.getElementById("filterDept").value;
-        const status = document.getElementById("filterStatus").value;
-        const userStatus = document.getElementById("filterUserStatus").value;
-        const ackStatus = document.getElementById("filterAck").value;
-        const searchInput = document.getElementById("filterSearch");
-        const search = searchInput
-          ? searchInput.value.toLowerCase().trim()
-          : "";
+        // อ่านค่าจาก Control ต่างๆ ตาม ID ใน HTML ของคุณ
+        const selectedDept = document.getElementById("filterDept")?.value || "";
+        const selectedStatus =
+          document.getElementById("filterStatus")?.value || "";
+        const selectedUserStatus =
+          document.getElementById("filterUserStatus")?.value || "";
+        const selectedAck = document.getElementById("filterAck")?.value || "";
+        const searchText =
+          document.getElementById("filterSearch")?.value.toLowerCase().trim() ||
+          "";
 
-        const filtered = rawData.filter((item) => {
-          if (dept && item.dept !== dept) return false;
-          if (status === "submitted" && !item.isSubmitted) return false;
-          if (status === "pending" && item.isSubmitted) return false;
+        const filtered = currentGlobalData.statusList.filter((item) => {
+          const latest = item.latestSubmission;
 
-          if (userStatus) {
-            if (!item.isSubmitted) return false;
-            const latest = item.latestSubmission || {};
-            const isCorrect = parseToBool(latest.correct ?? latest.isCorrect);
-            const isNeedEdit = parseToBool(
-              latest.needEdit ?? latest.isNeedEdit,
-            );
+          // 1. กรองตามฝ่าย
+          if (selectedDept && item.dept !== selectedDept) return false;
 
-            if (userStatus === "correct" && !isCorrect) return false;
-            if (userStatus === "needEdit" && !isNeedEdit) return false;
-          }
+          // 2. กรองตามสถานะการส่ง (submitted / pending)
+          if (selectedStatus === "submitted" && !item.isSubmitted) return false;
+          if (selectedStatus === "pending" && item.isSubmitted) return false;
 
-          if (ackStatus) {
-            if (!item.isSubmitted) return false;
-            const latest = item.latestSubmission || {};
-            const isAck =
-              parseToBool(latest.acknowledged ?? latest.isAck) ||
-              Boolean(item.kpoStatus);
+          // 3. กรองตามสถานะของข้อมูล (owner แจ้ง: correct / needEdit)
+          if (selectedUserStatus === "correct" && (!latest || !latest.correct))
+            return false;
+          if (
+            selectedUserStatus === "needEdit" &&
+            (!latest || !latest.needEdit)
+          )
+            return false;
 
-            if (ackStatus === "pendingReview" && isAck) return false;
-            if (ackStatus === "acknowledged" && !isAck) return false;
-          }
+          // 4. กรองตามสถานะ กปอ.รับทราบ (pendingReview / acknowledged)
+          if (
+            selectedAck === "acknowledged" &&
+            (!latest || !latest.acknowledged)
+          )
+            return false;
+          if (selectedAck === "pendingReview" && latest && latest.acknowledged)
+            return false;
 
-          if (search) {
-            const matchName =
-              item.topicName && item.topicName.toLowerCase().includes(search);
-            const matchId =
-              item.topicId && item.topicId.toString().includes(search);
-            const matchDept =
-              item.dept && item.dept.toLowerCase().includes(search);
-            if (!matchName && !matchId && !matchDept) return false;
+          // 5. ค้นหา (เลขหัวข้อ, ชื่อหัวข้อ, ชื่อฝ่าย)
+          if (searchText) {
+            const matchId = String(item.topicId || "")
+              .toLowerCase()
+              .includes(searchText);
+            const matchName = String(item.topicName || "")
+              .toLowerCase()
+              .includes(searchText);
+            const matchDept = String(item.dept || "")
+              .toLowerCase()
+              .includes(searchText);
+            if (!matchId && !matchName && !matchDept) return false;
           }
 
           return true;
         });
 
+        // ส่งข้อมูลที่กรองแล้วไปวาดตาราง
         renderTable(filtered);
       }
 
@@ -1261,23 +1258,32 @@
 
       // 6. loadDashboard ฉบับปลอดภัย
       function loadDashboard() {
+        const sortSelect = document.getElementById("sortOrder");
+        const sortBy = sortSelect ? sortSelect.value : "topic_first";
+
+        const tbody = document.getElementById("tableBody");
+        if (tbody) {
+          tbody.innerHTML = `
+      <tr>
+        <td colspan="10" class="text-center py-5">
+          <div class="spinner-border text-primary me-2"></div>
+          กำลังโหลดข้อมูล...
+        </td>
+      </tr>`;
+        }
+
         google.script.run
-          .withSuccessHandler((data) => {
-            if (!data) return;
-            currentGlobalData = data;
-
-            // 📌 ต้องมีบรรทัดนี้เพื่อส่งข้อมูลสรุปไปแสดงบน HTML Cards
-            renderSummary(data.summary);
-
-            // แสดงข้อมูลตาราง
-            renderTable(data.statusList);
-
-            if (typeof setupDepartmentDropdown === "function") {
-              setupDepartmentDropdown(data.departments);
+          .withSuccessHandler(renderDashboard)
+          .withFailureHandler((err) => {
+            console.error("Error loading dashboard:", err);
+            alert("โหลดข้อมูลล้มเหลว: " + err.message);
+            if (tbody) {
+              tbody.innerHTML = `<tr><td colspan="10" class="text-center py-4 text-danger">เกิดข้อผิดพลาดในการโหลดข้อมูล: ${escapeHtml(err.message)}</td></tr>`;
             }
           })
-          .getDashboardData();
+          .getDashboardData(sortBy);
       }
+
       function renderSummary(summary) {
         if (!summary) return;
 
@@ -1298,6 +1304,23 @@
         if (submittedElem) submittedElem.innerText = submitted.toLocaleString();
         if (pendingElem) pendingElem.innerText = pending.toLocaleString();
         if (percentElem) percentElem.innerText = `${percentage} %`;
+      }
+
+      // ฟังก์ชันสร้างรายการฝ่ายใส่ Dropdown Filter
+      function setupDepartmentDropdown(departments) {
+        const deptSelect = document.getElementById("filterDept");
+        if (!deptSelect || !departments) return;
+
+        // เก็บค่าที่เลือกไว้ปัจจุบัน (ถ้ามี)
+        const currentSelected = deptSelect.value;
+
+        let html = `<option value="">-- ทั้งหมดทุกฝ่าย --</option>`;
+        departments.forEach((dept) => {
+          html += `<option value="${escapeHtml(dept)}">${escapeHtml(dept)}</option>`;
+        });
+
+        deptSelect.innerHTML = html;
+        deptSelect.value = currentSelected; // คืนค่าที่เลือกไว้เดิม
       }
     </script>
   </body>
